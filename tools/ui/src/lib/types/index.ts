@@ -29,8 +29,7 @@ export type {
 	ApiRouterModelsStatusResponse,
 	ApiRouterModelsListResponse,
 	ApiRouterModelsUnloadRequest,
-	ApiRouterModelsUnloadResponse,
-	AudioInputFormat
+	ApiRouterModelsUnloadResponse
 } from './api';
 
 // Chat types

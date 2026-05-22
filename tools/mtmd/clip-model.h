@@ -35,16 +35,6 @@ enum resize_algo {
     // RESIZE_ALGO_LANCZOS, // TODO
 };
 
-// Padding style for img_tool::resize
-//   PAD_NONE    - no padding; direct resize to target dimensions
-//   PAD_CEIL    - aspect-preserving pad (default)
-//   PAD_NEAREST - aspect-preserving pad with nearest-integer rounding (Pillow byte-parity)
-enum pad_style {
-    PAD_NONE,
-    PAD_CEIL,
-    PAD_NEAREST,
-};
-
 struct clip_hparams {
     int32_t image_size = 0;
     int32_t patch_size = 0;
@@ -62,7 +52,7 @@ struct clip_hparams {
     int32_t image_min_pixels = -1;
     int32_t image_max_pixels = -1;
     resize_algo image_resize_algo = RESIZE_ALGO_BICUBIC;
-    pad_style image_resize_pad = PAD_CEIL; // padding style when resizing
+    bool image_resize_pad = true; // if false, center-crop will be applied when resizing
     std::array<uint8_t, 3> image_pad_color = {0, 0, 0};
 
     // (preprocessor) for llava-uhd style models
@@ -71,8 +61,8 @@ struct clip_hparams {
     int32_t preproc_max_tiles = 0;
     resize_algo image_resize_algo_rf = RESIZE_ALGO_BICUBIC;
     resize_algo image_resize_algo_ov = RESIZE_ALGO_BILINEAR;
-    pad_style image_pad_rf = PAD_CEIL;  // padding style for the refined image (e.g. llava-1.6)
-    pad_style image_pad_ov = PAD_NONE;  // padding style for the overview image (e.g. llava-1.6)
+    bool image_pad_rf = true;  // if true, refined image will be padded (e.g. llava-1.6)
+    bool image_pad_ov = false; // if true, overview image will be padded (e.g. llava-1.6)
     std::array<uint8_t, 3> image_pad_color_rf = {0, 0, 0}; // padding color for refined image
     std::array<uint8_t, 3> image_pad_color_ov = {0, 0, 0}; // padding color for overview image
 
@@ -520,7 +510,7 @@ struct clip_model {
     ggml_tensor * mm_boi = nullptr;
     ggml_tensor * mm_eoi = nullptr;
 
-    // hunyuanvl perceiver
+    // hunyuanocr perceiver
     ggml_tensor * mm_pre_norm_w  = nullptr;
     ggml_tensor * mm_img_begin   = nullptr;
     ggml_tensor * mm_img_end     = nullptr;

@@ -71,10 +71,7 @@ static server_http_context::handler_t ex_wrapper(server_http_context::handler_t 
     };
 }
 
-// satisfies -Wmissing-declarations
-int llama_server(int argc, char ** argv);
-
-int llama_server(int argc, char ** argv) {
+int main(int argc, char ** argv) {
     std::setlocale(LC_NUMERIC, "C");
 
     // own arguments required by this example

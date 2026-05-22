@@ -64,9 +64,8 @@ llama_context::llama_context(
     cparams.yarn_attn_factor = params.yarn_attn_factor >= 0.0f ? params.yarn_attn_factor : hparams.yarn_attn_factor;
     cparams.yarn_beta_fast   = params.yarn_beta_fast   >= 0.0f ? params.yarn_beta_fast   : hparams.yarn_beta_fast;
     cparams.yarn_beta_slow   = params.yarn_beta_slow   >= 0.0f ? params.yarn_beta_slow   : hparams.yarn_beta_slow;
-    cparams.embeddings                  = params.embeddings;
-    cparams.embeddings_pre_norm         = false;
-    cparams.embeddings_pre_norm_masked  = false;
+    cparams.embeddings       = params.embeddings;
+    cparams.embeddings_pre_norm = false;
     cparams.offload_kqv      = params.offload_kqv;
     cparams.no_perf          = params.no_perf;
     cparams.pooling_type     = params.pooling_type;
@@ -1136,19 +1135,6 @@ bool llama_context::set_sampler(llama_seq_id seq_id, llama_sampler * sampler) {
     }
 
     LLAMA_LOG_DEBUG("%s: seq_id = %d, sampler = %p\n", __func__, (int) seq_id, (void *) sampler);
-
-    if (sampler && model.split_mode() == LLAMA_SPLIT_MODE_TENSOR) {
-        static bool warned = false;
-        if (!warned) {
-            LLAMA_LOG_WARN("%s: backend sampling not supported with SPLIT_MODE_TENSOR; using CPU\n", __func__);
-            warned = true;
-        }
-        if (sampling.samplers.count(seq_id) > 0) {
-            sched_need_reserve = true;
-        }
-        sampling.samplers.erase(seq_id);
-        return false;
-    }
 
     const bool can_offload =
         sampler &&
@@ -3401,10 +3387,6 @@ llama_context * llama_init_from_model(
         }
         if (params.flash_attn_type != LLAMA_FLASH_ATTN_TYPE_ENABLED) {
             LLAMA_LOG_ERROR("%s: SPLIT_MODE_TENSOR requires flash_attn to be enabled\n", __func__);
-            return nullptr;
-        }
-        if (ggml_is_quantized(params.type_k) || ggml_is_quantized(params.type_v)) {
-            LLAMA_LOG_ERROR("%s: simultaneous use of SPLIT_MODE_TENSOR and KV cache quantization not implemented\n", __func__);
             return nullptr;
         }
     }

@@ -5,15 +5,12 @@ import {
 	ATTACHMENT_LABEL_PDF_FILE,
 	ATTACHMENT_LABEL_MCP_PROMPT,
 	ATTACHMENT_LABEL_MCP_RESOURCE,
-	LEGACY_AGENTIC_REGEX,
-	SETTINGS_KEYS
+	LEGACY_AGENTIC_REGEX
 } from '$lib/constants';
 import {
 	AttachmentType,
 	ContentPartType,
-	FileTypeAudio,
 	MessageRole,
-	MimeTypeAudio,
 	ReasoningFormat,
 	UrlProtocol
 } from '$lib/enums';
@@ -22,31 +19,8 @@ import type {
 	ApiChatMessageData,
 	ApiChatCompletionToolCall
 } from '$lib/types/api';
-import type {
-	AudioInputFormat,
-	DatabaseMessageExtraMcpPrompt,
-	DatabaseMessageExtraMcpResource
-} from '$lib/types';
+import type { DatabaseMessageExtraMcpPrompt, DatabaseMessageExtraMcpResource } from '$lib/types';
 import { modelsStore } from '$lib/stores/models.svelte';
-import { settingsStore } from '../stores/settings.svelte';
-import { capImageDataURLSize } from '../utils/cap-img-size';
-import { MEGAPIXELS_TO_PIXELS } from '$lib/constants/image-size';
-
-function getAudioInputFormat(mimeType: string): AudioInputFormat {
-	const normalizedMimeType = mimeType.trim().toLowerCase();
-
-	if (
-		normalizedMimeType === MimeTypeAudio.WAV ||
-		normalizedMimeType === MimeTypeAudio.WAVE ||
-		normalizedMimeType === MimeTypeAudio.X_WAV ||
-		normalizedMimeType === MimeTypeAudio.X_WAVE ||
-		normalizedMimeType === MimeTypeAudio.X_PN_WAV
-	) {
-		return FileTypeAudio.WAV;
-	}
-
-	return FileTypeAudio.MP3;
-}
 
 export class ChatService {
 	/**
@@ -160,28 +134,26 @@ export class ChatService {
 			continueFinalMessage
 		} = options;
 
-		const normalizedMessages: ApiChatMessageData[] = (
-			await Promise.all(
-				messages.map((msg) => {
-					if ('id' in msg && 'convId' in msg && 'timestamp' in msg) {
-						const dbMsg = msg as DatabaseMessage & { extra?: DatabaseMessageExtra[] };
+		const normalizedMessages: ApiChatMessageData[] = messages
+			.map((msg) => {
+				if ('id' in msg && 'convId' in msg && 'timestamp' in msg) {
+					const dbMsg = msg as DatabaseMessage & { extra?: DatabaseMessageExtra[] };
 
-						return ChatService.convertDbMessageToApiChatMessageData(dbMsg);
-					} else {
-						return msg as ApiChatMessageData;
-					}
-				})
-			)
-		).filter((msg: { role: ChatRole; content: string | ApiChatMessageContentPart[] }) => {
-			// Filter out empty system messages
-			if (msg.role === MessageRole.SYSTEM) {
-				const content = typeof msg.content === 'string' ? msg.content : '';
+					return ChatService.convertDbMessageToApiChatMessageData(dbMsg);
+				} else {
+					return msg as ApiChatMessageData;
+				}
+			})
+			.filter((msg) => {
+				// Filter out empty system messages
+				if (msg.role === MessageRole.SYSTEM) {
+					const content = typeof msg.content === 'string' ? msg.content : '';
 
-				return content.trim().length > 0;
-			}
+					return content.trim().length > 0;
+				}
 
-			return true;
-		});
+				return true;
+			});
 
 		// Filter out image attachments if the model doesn't support vision
 		if (options.model && !modelsStore.modelSupportsVision(options.model)) {
@@ -410,27 +382,25 @@ export class ChatService {
 		excludeReasoning?: boolean,
 		signal?: AbortSignal
 	): Promise<void> {
-		const normalizedMessages: ApiChatMessageData[] = (
-			await Promise.all(
-				messages.map((msg) => {
-					if ('id' in msg && 'convId' in msg && 'timestamp' in msg) {
-						return ChatService.convertDbMessageToApiChatMessageData(
-							msg as DatabaseMessage & { extra?: DatabaseMessageExtra[] }
-						);
-					}
+		const normalizedMessages: ApiChatMessageData[] = messages
+			.map((msg) => {
+				if ('id' in msg && 'convId' in msg && 'timestamp' in msg) {
+					return ChatService.convertDbMessageToApiChatMessageData(
+						msg as DatabaseMessage & { extra?: DatabaseMessageExtra[] }
+					);
+				}
 
-					return msg as ApiChatMessageData;
-				})
-			)
-		).filter((msg: { role: ChatRole; content: string | ApiChatMessageContentPart[] }) => {
-			if (msg.role === MessageRole.SYSTEM) {
-				const content = typeof msg.content === 'string' ? msg.content : '';
+				return msg as ApiChatMessageData;
+			})
+			.filter((msg) => {
+				if (msg.role === MessageRole.SYSTEM) {
+					const content = typeof msg.content === 'string' ? msg.content : '';
 
-				return content.trim().length > 0;
-			}
+					return content.trim().length > 0;
+				}
 
-			return true;
-		});
+				return true;
+			});
 
 		const requestBody: Record<string, unknown> = {
 			messages: normalizedMessages.map((msg: ApiChatMessageData) => {
@@ -813,9 +783,9 @@ export class ChatService {
 	 * @returns {ApiChatMessageData} object formatted for the chat completion API
 	 * @static
 	 */
-	static async convertDbMessageToApiChatMessageData(
+	static convertDbMessageToApiChatMessageData(
 		message: DatabaseMessage & { extra?: DatabaseMessageExtra[] }
-	): Promise<ApiChatMessageData> {
+	): ApiChatMessageData {
 		// Handle tool result messages (role: 'tool')
 		if (message.role === MessageRole.TOOL && message.toolCallId) {
 			return {
@@ -854,6 +824,26 @@ export class ChatService {
 
 		const contentParts: ApiChatMessageContentPart[] = [];
 
+		if (message.content) {
+			contentParts.push({
+				type: ContentPartType.TEXT,
+				text: message.content
+			});
+		}
+
+		// Include images from all messages
+		const imageFiles = message.extra.filter(
+			(extra: DatabaseMessageExtra): extra is DatabaseMessageExtraImageFile =>
+				extra.type === AttachmentType.IMAGE
+		);
+
+		for (const image of imageFiles) {
+			contentParts.push({
+				type: ContentPartType.IMAGE_URL,
+				image_url: { url: image.base64Url }
+			});
+		}
+
 		const textFiles = message.extra.filter(
 			(extra: DatabaseMessageExtra): extra is DatabaseMessageExtraTextFile =>
 				extra.type === AttachmentType.TEXT
@@ -879,31 +869,6 @@ export class ChatService {
 			});
 		}
 
-		if (message.content) {
-			contentParts.push({
-				type: ContentPartType.TEXT,
-				text: message.content
-			});
-		}
-
-		// Include images from all messages
-		const imageFiles = message.extra.filter(
-			(extra: DatabaseMessageExtra): extra is DatabaseMessageExtraImageFile =>
-				extra.type === AttachmentType.IMAGE
-		);
-
-		for (const image of imageFiles) {
-			const maxImageResolution = settingsStore.getConfig(SETTINGS_KEYS.MAX_IMAGE_RESOLUTION);
-			let base64Url = image.base64Url;
-			if (maxImageResolution > 1 / MEGAPIXELS_TO_PIXELS) {
-				base64Url = await capImageDataURLSize(image.base64Url, maxImageResolution);
-			}
-			contentParts.push({
-				type: ContentPartType.IMAGE_URL,
-				image_url: { url: base64Url }
-			});
-		}
-
 		const audioFiles = message.extra.filter(
 			(extra: DatabaseMessageExtra): extra is DatabaseMessageExtraAudioFile =>
 				extra.type === AttachmentType.AUDIO
@@ -914,7 +879,7 @@ export class ChatService {
 				type: ContentPartType.INPUT_AUDIO,
 				input_audio: {
 					data: audio.base64Data,
-					format: getAudioInputFormat(audio.mimeType)
+					format: audio.mimeType.includes('wav') ? 'wav' : 'mp3'
 				}
 			});
 		}

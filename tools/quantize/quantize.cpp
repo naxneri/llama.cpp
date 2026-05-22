@@ -490,10 +490,7 @@ static bool parse_layer_prune(const char * data, std::vector<int> & prune_layers
     return true;
 }
 
-// satisfies -Wmissing-declarations
-int llama_quantize(int argc, char ** argv);
-
-int llama_quantize(int argc, char ** argv) {
+int main(int argc, char ** argv) {
     std::setlocale(LC_NUMERIC, "C");
     if (argc < 3) {
         usage(argv[0]);
